@@ -55,6 +55,8 @@ internal sealed class NamedPipeUrlReceiver : IAsyncDisposable
             {
                 NamedPipeServerStream? pipeServer = null;
 
+                bool connectionEstablished = false;
+
                 try
                 {
                     pipeServer = NamedPipeServerStreamAcl.Create(
@@ -67,12 +69,8 @@ internal sealed class NamedPipeUrlReceiver : IAsyncDisposable
                         outBufferSize: 4096,
                         _pipeSecurity);
 
-                    await pipeServer.WaitForConnectionAsync(_cts.Token);
-
-                    // Spawn replacement listener IMMEDIATELY before processing
-                    EnsureMinimumListeners();
-
-                    await ProcessConnectionAsync(pipeServer);
+                    await pipeServer.WaitForConnectionAsync(_cts.Token).ConfigureAwait(false);
+                    connectionEstablished = true;
                 }
                 catch (OperationCanceledException)
                 {
@@ -80,25 +78,27 @@ internal sealed class NamedPipeUrlReceiver : IAsyncDisposable
                 }
                 catch (IOException ex) when (ex.HResult == -2147024664) // ERROR_PIPE_CONNECTED
                 {
-                    if (pipeServer != null)
-                    {
-                        // Spawn replacement listener IMMEDIATELY before processing
-                        EnsureMinimumListeners();
-
-                        await ProcessConnectionAsync(pipeServer);
-                    }
+                    connectionEstablished = pipeServer != null;
                 }
                 catch (Exception ex)
                 {
                     Debug.WriteLine($"Pipe listener error: {ex.Message}");
                     try
                     {
-                        await Task.Delay(100, _cts.Token);
+                        await Task.Delay(100, _cts.Token).ConfigureAwait(false);
                     }
                     catch (OperationCanceledException)
                     {
                         break;
                     }
+                }
+
+                if (connectionEstablished)
+                {
+                    // Spawn replacement listener IMMEDIATELY before processing
+                    EnsureMinimumListeners();
+
+                    await ProcessConnectionAsync(pipeServer!).ConfigureAwait(false);
                 }
                 finally
                 {
@@ -131,7 +131,7 @@ internal sealed class NamedPipeUrlReceiver : IAsyncDisposable
             using var readCts = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
             readCts.CancelAfter(TimeSpan.FromSeconds(5));
 
-            string data = await reader.ReadToEndAsync(readCts.Token);
+            string data = await reader.ReadToEndAsync(readCts.Token).ConfigureAwait(false);
 
             if (!string.IsNullOrWhiteSpace(data))
             {
@@ -163,7 +163,7 @@ internal sealed class NamedPipeUrlReceiver : IAsyncDisposable
         int maxWaitIterations = 50;
         while (Volatile.Read(ref _activeListeners) > 0 && maxWaitIterations-- > 0)
         {
-            await Task.Delay(100);
+            await Task.Delay(100).ConfigureAwait(false);
         }
 
         _cts.Dispose();

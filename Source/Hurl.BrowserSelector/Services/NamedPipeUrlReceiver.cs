@@ -67,25 +67,19 @@ internal sealed class NamedPipeUrlReceiver : IAsyncDisposable
                         outBufferSize: 4096,
                         _pipeSecurity);
 
-                    bool hasConnection;
                     try
                     {
                         await pipeServer.WaitForConnectionAsync(_cts.Token).ConfigureAwait(false);
-                        hasConnection = true;
                     }
                     catch (IOException ex) when (ex.HResult == -2147024664) // ERROR_PIPE_CONNECTED
                     {
                         // Client connected before WaitForConnectionAsync was called - connection is already established
-                        hasConnection = true;
                     }
 
-                    if (hasConnection)
-                    {
-                        // Spawn replacement listener IMMEDIATELY before processing
-                        EnsureMinimumListeners();
+                    // Spawn replacement listener IMMEDIATELY before processing
+                    EnsureMinimumListeners();
 
-                        await ProcessConnectionAsync(pipeServer).ConfigureAwait(false);
-                    }
+                    await ProcessConnectionAsync(pipeServer).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)
                 {

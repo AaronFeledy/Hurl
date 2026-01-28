@@ -89,11 +89,11 @@ namespace Hurl.BrowserSelector
             _mainWindow.Init(cliArgs);
         }
 
-        protected override async void OnExit(ExitEventArgs e)
+        protected override void OnExit(ExitEventArgs e)
         {
             if (_pipeReceiver != null)
             {
-                await _pipeReceiver.DisposeAsync();
+                _pipeReceiver.DisposeAsync().GetAwaiter().GetResult();
             }
 
             _singleInstanceMutex?.Close();

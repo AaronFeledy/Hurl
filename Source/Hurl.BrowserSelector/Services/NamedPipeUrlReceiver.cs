@@ -82,6 +82,8 @@ internal sealed class NamedPipeUrlReceiver : IAsyncDisposable
                 {
                     if (pipeServer != null)
                     {
+                        // Spawn replacement listener IMMEDIATELY before processing
+                        EnsureMinimumListeners();
                         await ProcessConnectionAsync(pipeServer);
                     }
                 }
@@ -123,7 +125,7 @@ internal sealed class NamedPipeUrlReceiver : IAsyncDisposable
     {
         try
         {
-            using var reader = new StreamReader(pipeServer);
+            using var reader = new StreamReader(pipeServer, leaveOpen: true);
 
             using var readCts = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
             readCts.CancelAfter(TimeSpan.FromSeconds(5));
